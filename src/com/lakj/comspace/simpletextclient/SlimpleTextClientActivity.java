@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
@@ -11,12 +13,15 @@ import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
-import org.json.JSONObject;
+import android.widget.TextView;
+import android.widget.Toast;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.DefaultHttpClient;
 
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -29,32 +34,7 @@ import java.net.UnknownHostException;
  * Author by Lak J Comspace
  */
 public class SlimpleTextClientActivity extends Activity {
-    String strJson = "{\"Status\": {" +
-            "\"CHWOutLetTemp\": \"0.0\"," +
-            "\"HTWOutLetTemp\": \"0.0\"," +
-            "\"RefTemp\": \"0.0\"," +
-            "\"ValvePosition\": \"0.0\"," +
-            "\"CHWInLetTemp\": \"0.0\"," +
-            "\"HTWInLetTemp\": \"0.0\"," +
-            "\"COWOutLetTemp\": \"0.0\"," +
-            "\"CowInLetTemp\": \"0.0\"," +
-            "\"DilutionTemp\": \"0.0\"," +
-            "\"SolutionTemp\": \"0.0\"," +
-            "\"ExhaustTemp\": \"0.0\"" +
-            "  }," +
-            "\"Setting\":{" +
-            "\"CHWOutLetTemp\": \"0.0\"," +
-            "\"HTWOutLetTemp\": \"0.0\"," +
-            "\"RefTemp\": \"0.0\"," +
-            "\"ValvePosition\": \"0.0\"," +
-            "\"CHWInLetTemp\": \"0.0\"," +
-            "\"HTWInLetTemp\": \"0.0\"," +
-            "\"COWOutLetTemp\": \"0.0\"," +
-            "\"CowInLetTemp\": \"0.0\"," +
-            "\"DilutionTemp\": \"0.0\"," +
-            "\"SolutionTemp\": \"0.0\"," +
-            "\"ExhaustTemp\": \"0.0\"" +
-            "}}";
+
     static int intentCallCount = 0;
     // default ip
     public static String SERVERIP = "192.168.1.6";
@@ -67,11 +47,14 @@ public class SlimpleTextClientActivity extends Activity {
     private EditText textField;
     private Button connectPhones;
     private Button Stopthread;
+    private Button BtnPost;
+    private TextView tvIsConnected;
     private String messsage;
     private EditText serverIp;
     private String serverIpAddress = "";
     private BroadcastReceiver receiver;
     private boolean connected = false;
+    private JsonChiller jsonMainObject;
     Intent intent;
     Thread cThread;
     @Override
@@ -84,6 +67,9 @@ public class SlimpleTextClientActivity extends Activity {
         serverIp = (EditText) findViewById(R.id.editText1); // reference to the text field
         connectPhones = (Button) findViewById(R.id.button1); // reference to the send button
         Stopthread = (Button) findViewById(R.id.button2); // reference to the send button
+        BtnPost = (Button) findViewById(R.id.btnPost); // reference to the send button
+        tvIsConnected = (TextView) findViewById(R.id.tvIsConnected);
+
         intent = new Intent();
 
         intent.setAction("com.tutorialspoint.CUSTOM_INTENT");
@@ -115,6 +101,15 @@ public class SlimpleTextClientActivity extends Activity {
                 if (cThread != null) cThread.interrupt();
 
             }});*/
+
+        // check if you are connected or not
+        if(isConnected()){
+            tvIsConnected.setBackgroundColor(0xFF00CC00);
+            tvIsConnected.setText("You are conncted");
+        }
+        else{
+            tvIsConnected.setText("You are NOT conncted");
+        }
     }
 
     public class ClientThread implements Runnable {
@@ -131,6 +126,7 @@ public class SlimpleTextClientActivity extends Activity {
                 PrintWriter out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())), true);
                 // where you issue the commands
                 connected = true;
+
                 while (connected) {
                     try {
                         int LengthRecieve = socket.getInputStream().available();
@@ -173,7 +169,7 @@ public class SlimpleTextClientActivity extends Activity {
         @Override
         protected Void doInBackground(Void... params) {
             try {
-                client = new Socket("192.168.1.6", 502); // connect to the server
+                client = new Socket("192.168.1.6", 8001); // connect to the server
                 printwriter = new PrintWriter(client.getOutputStream(), true);
                 printwriter.write(messsage); // write the message to output stream
                 printwriter.flush();
@@ -200,14 +196,139 @@ public class SlimpleTextClientActivity extends Activity {
         intent.putExtra("Data", bytes);
         sendBroadcast(intent);
     }
-    public void setViewNoStatic( JSONObject jsonRootObject) {
+    public void setViewNoStatic( JsonChiller jsonRootObject) {
 //        Log.d("SlimpleTextClientActivity", "set view =" + StrValue);
-
-        serverIp.setText(jsonRootObject.toString());
+        jsonMainObject = jsonRootObject;
+        serverIp.setText(jsonRootObject.jsonRootObject.toString());
+        new HttpAsyncTask().execute("http://192.168.1.6:8001/");//hmkcode.appspot.com/jsonservlet
 
     }
     @Override
     protected void onDestroy() {
         super.onDestroy();
+    }
+
+    public static String POST(String url,JsonChiller jsonRootObject){
+        InputStream inputStream = null;
+        String result = "";
+        try {
+
+            // 1. create HttpClient
+            HttpClient httpclient = new DefaultHttpClient();
+
+            // 2. make POST request to the given URL
+            HttpPost httpPost = new HttpPost(url);
+
+            String json = "";
+
+           /* // 3. build jsonObject
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.accumulate("name","reza");
+            jsonObject.accumulate("country", "Shiraz");
+            jsonObject.accumulate("twitter", "Iran");
+
+            // 4. convert JSONObject to JSON to String
+            json = jsonObject.toString();*/
+            json = jsonRootObject.jsonRootObject.toString();
+            // ** Alternative way to convert Person object to JSON string usin Jackson Lib
+            // ObjectMapper mapper = new ObjectMapper();
+            // json = mapper.writeValueAsString(person);
+
+            // 5. set json to StringEntity
+            StringEntity se = new StringEntity(json);
+
+            // 6. set httpPost Entity
+            httpPost.setEntity(se);
+
+            // 7. Set some headers to inform server about the type of the content
+            httpPost.setHeader("Accept", "application/json");
+            httpPost.setHeader("Content-type", "application/json");
+
+            // 8. Execute POST request to the given URL
+            HttpResponse httpResponse = httpclient.execute(httpPost);
+
+            // 9. receive response as inputStream
+            inputStream = httpResponse.getEntity().getContent();
+
+            // 10. convert inputstream to string
+            if(inputStream != null)
+                result = convertInputStreamToString(inputStream);
+            else
+                result = "Did not work!";
+            Log.d("SlimpleTextClientActivity",result);
+
+        } catch (Exception e) {
+            Log.d("SlimpleTextClientActivity", e.getLocalizedMessage());
+        }
+
+        // 11. return result
+        return result;
+    }
+
+    public boolean isConnected(){
+        ConnectivityManager connMgr = (ConnectivityManager) getSystemService(Activity.CONNECTIVITY_SERVICE);
+        NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
+        if (networkInfo != null && networkInfo.isConnected())
+            return true;
+        else
+            return false;
+    }
+
+    public void onClickbtnPost(View view) {
+
+        switch(view.getId()){
+            case R.id.btnPost:
+                if(!validate())
+                    Toast.makeText(getBaseContext(), "Enter some data!", Toast.LENGTH_LONG).show();
+                // call AsynTask to perform network operation on separate thread
+                new HttpAsyncTask().execute("http://192.168.1.6:8001/");//hmkcode.appspot.com/jsonservlet
+                break;
+        }
+
+    }
+    private class HttpAsyncTask extends AsyncTask<String, Void, String> {
+        @Override
+        protected String doInBackground(String... urls) {
+
+     /*       JsonChiller JsonChillerObject = new JsonChiller();
+            try {
+                JsonChillerObject.jsonRootObject.getJSONObject("Status").put("CHWOutLetTemp","1.1");
+                JsonChillerObject.jsonRootObject.getJSONObject("Status").put("HTWOutLetTemp","2.2");
+                JsonChillerObject.jsonRootObject.getJSONObject("Status").put("RefTemp", "3.3");
+                JsonChillerObject.jsonRootObject.getJSONObject("Status").put("ValvePosition", "4.4");
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }*/
+
+            return POST(urls[0], jsonMainObject);
+
+        }
+        // onPostExecute displays the results of the AsyncTask.
+        @Override
+        protected void onPostExecute(String result) {
+  //          Toast.makeText(getBaseContext(), "Data Sent!", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private boolean validate(){
+     /*   if(etName.getText().toString().trim().equals(""))
+            return false;
+        else if(etCountry.getText().toString().trim().equals(""))
+            return false;
+        else if(etTwitter.getText().toString().trim().equals(""))
+            return false;
+        else*/
+            return true;
+    }
+    private static String convertInputStreamToString(InputStream inputStream) throws IOException{
+        BufferedReader bufferedReader = new BufferedReader( new InputStreamReader(inputStream));
+        String line = "";
+        String result = "";
+        while((line = bufferedReader.readLine()) != null)
+            result += line;
+
+        inputStream.close();
+        return result;
+
     }
 }

@@ -31,8 +31,9 @@ public final class R {
         public static final int editText1 = 0x7f080003;
         public static final int button2 = 0x7f080004;
         //      public static final int Stopthread=0x7f080004;
-        public static final int send = 0x7f080005;
-        //   public static final int LStrIn=0x7f080006;
+        public static final int btnPost = 0x7f080005;
+        public static final int tvIsConnected = 0x7f080006;
+         //   public static final int LStrIn=0x7f080006;
     }
 
     public static final class layout {
